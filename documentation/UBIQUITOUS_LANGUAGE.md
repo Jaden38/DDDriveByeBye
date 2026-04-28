@@ -6,15 +6,17 @@
 
 **User**: Any person registered on the platform. A user has one of two account types — Individual or Professional — which determines which roles they can take and which ride modes they can access. Rules that apply equally to all users regardless of type (e.g., rating, penalty, suspension) use this term.
 
-**Individual Account**: Account type for carpooling. An individual user can act as both a Passenger and a Driver, but never simultaneously on the same ride. They can publish Ride Offers, join other Ride Offers, and submit Ride Requests. This is the dual-role model.
+**Individual Account**: Account type for carpooling. An individual user can act as both a Passenger and a Driver, but never simultaneously on the same ride. As a Passenger, they can submit Immediate Ride Requests, submit Scheduled Ride Requests, or search for and join existing Ride Offers. As a Driver, they can activate their availability to pick up Immediate Ride passengers, or publish Ride Offers for planned trips.
 
-**Professional Account**: Account type for VTC transport. A professional user is a driver only — they cannot act as a Passenger and cannot publish or join Ride Offers. They can handle both Immediate Rides and Scheduled Ride Requests, operating like a professional transport service (e.g. Uber driver model). A Professional Account requires a VTC license and undergoes a stricter validation process.
+**Professional Account**: Account type for on-demand VTC transport. A professional user is a driver only — they cannot act as a Passenger, cannot publish Ride Offers, and cannot handle Scheduled Rides. They operate exclusively on Immediate Rides within their defined Working Zone. A Professional Account requires a VTC license and undergoes a stricter validation process.
 
 **Passenger**: Role taken by an Individual user when they are looking for or taking a ride. A user acting as a Passenger can search for existing Ride Offers or submit a Ride Request. They must deactivate their driver availability before acting as a Passenger. Professional accounts cannot take this role.
 
 **Driver**: Role taken by a user (Individual or Professional) when they are offering or driving a ride. An Individual driver can publish Ride Offers or respond to Ride Requests for Scheduled Rides. A Professional driver responds to Immediate Ride Requests only. A user cannot act as a Driver and a Passenger at the same time on the same ride.
 
-**Activity Zone**: Geographic area in which a driver agrees to operate. A driver can have one or more activity zones.
+**Activity Zone**: Preferred geographic area defined by an Individual driver. Used as a soft filter in matching — rides outside the zone are deprioritized but still reachable.
+
+**Working Zone**: Required geographic area defined by a Professional driver. Used as a hard constraint in matching — Professional drivers only receive Immediate Ride proposals within their Working Zone.
 
 **Vehicle Profile**: Set of characteristics of a vehicle registered by a driver (type, number of available seats, options such as air conditioning, pet transport, wheelchair accessibility, etc.).
 
@@ -30,9 +32,9 @@
 
 **Ride Search**: The action performed by a user acting as a Passenger to browse available Ride Offers before deciding to submit a Ride Request. A Ride Search is only applicable for Scheduled Rides.
 
-**Immediate Ride**: A Ride Request to be fulfilled as quickly as possible by assigning a nearby available driver (VTC / on-demand mode). Always passenger-initiated via a Ride Request. Available to both Individual and Professional drivers.
+**Immediate Ride**: A Ride Request to be fulfilled as quickly as possible by assigning a nearby available driver (on-demand mode). Always passenger-initiated. Both Individual and Professional drivers are eligible. Professional drivers are only matched within their Working Zone.
 
-**Scheduled Ride**: A ride planned in advance for a future date and time. Can be driver-initiated via a Ride Offer (Individual drivers only) or passenger-initiated via a Ride Request when no suitable Ride Offer exists. Both Individual and Professional drivers can respond to Scheduled Ride Requests.
+**Scheduled Ride**: A ride planned in advance for a future date and time (carpooling mode). Involves Individual users only. Can be driver-initiated via a Ride Offer, or passenger-initiated via a Ride Request when no suitable Ride Offer is found. Professional drivers do not participate in Scheduled Rides.
 
 **Match**: Result of the matching process between a Ride Request or Ride Offer and compatible counterparts, taking into account location, destination, preferences, and constraints.
 

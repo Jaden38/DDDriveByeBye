@@ -3,8 +3,11 @@
 #   - Ride Request flow: finds a driver for a passenger's request (Immediate & Scheduled Rides)
 #   - Ride Offer flow: matches a passenger's search to existing published Ride Offers (Scheduled Rides)
 # Account type rules enforced by the matching engine:
-#   - Immediate and Scheduled Ride requests → both Individual and Professional drivers eligible
-#   - Ride Offer searches                   → Individual drivers only (carpooling)
+#   - Immediate Ride requests  → Individual AND Professional drivers eligible
+#                                Professional drivers hard-filtered to their Working Zone
+#                                Individual drivers soft-filtered by Activity Zone (preference)
+#   - Scheduled Ride requests  → Individual drivers only
+#   - Ride Offer searches      → Individual drivers only
 # Conforms to: Territorial Configuration, Geolocation & Routing
 # Customer-Supplier with: User Management
 
@@ -47,26 +50,46 @@ Feature: Ride Search Matching (Ride Offer flow)
     And the passenger is offered the option to submit a ride request as a fallback
 
 
-Feature: Driver Matching (Ride Request flow)
+Feature: Immediate Ride Matching
   As the matching engine
-  I want to find the most suitable available driver for a ride request
-  So that the ride is assigned quickly and optimally
+  I want to find the nearest available driver for an Immediate Ride request
+  So that the passenger is picked up as quickly as possible
+  # Both Individual and Professional drivers are eligible
+  # Professional drivers are hard-filtered to their Working Zone
+  # Individual drivers are soft-filtered by their Activity Zone (preference only)
 
   Background:
-    Given a ride request with status "Requested" exists
+    Given an Immediate Ride request with status "Requested" exists
     And the pickup point is within a covered territory
 
-  Scenario: Successful match with the nearest available driver
+  Scenario: Immediate ride matched to both Individual and Professional drivers
     Given the following drivers are available near the pickup point
       | Driver  | Account Type  | Distance | Reputation Score | Restrictions |
       | Jean    | Professional  | 1.2 km   | 4.8              | none         |
-      | Paul    | Individual    | 2.5 km   | 4.5              | none         |
-      | Marc    | Professional  | 0.9 km   | 2.9              | Suspension   |
+      | Alice   | Individual    | 0.9 km   | 4.6              | none         |
+      | Marc    | Professional  | 0.8 km   | 2.9              | Suspension   |
     When the matching engine runs
-    Then a ride proposal is sent to driver "Jean" (nearest eligible driver)
+    Then a ride proposal is sent to driver "Alice" (nearest eligible driver)
     And driver "Marc" is excluded due to active Suspension restriction
     And the ride moves to status "Proposed"
-    And a 30-second response window is assigned to driver "Jean"
+    And a 30-second response window is assigned to driver "Alice"
+
+  Scenario: Professional driver excluded when pickup is outside their Working Zone
+    Given the pickup point is in "Montmartre, Paris"
+    And the Professional driver "Jean" has a Working Zone of "La Défense"
+    And the Individual driver "Paul" is available with no activity zone restriction
+    When the matching engine runs
+    Then driver "Jean" is excluded — pickup is outside their Working Zone
+    And a ride proposal is sent to driver "Paul"
+
+  Scenario: Individual driver's Activity Zone used as soft prioritization
+    Given the pickup point is in the "15th arrondissement, Paris"
+    And the Individual driver "Alice" has defined her Activity Zone as "15th - 16th arrondissement"
+    And the Individual driver "Paul" has no Activity Zone defined
+    And both are equally distant from the pickup point
+    When the matching engine runs
+    Then driver "Alice" is prioritized over driver "Paul"
+    And driver "Paul" remains eligible if "Alice" declines
 
   Scenario: Driver ranked by proximity when reputation scores are equal
     Given the following drivers are available near the pickup point
@@ -95,14 +118,6 @@ Feature: Driver Matching (Ride Request flow)
     When the matching engine runs
     Then a ride proposal is sent to driver "Paul"
     And driver "Jean" is excluded due to driver preference mismatch
-
-  Scenario: Activity zone filter applied during matching
-    Given the ride pickup point is in the "15th arrondissement, Paris"
-    And driver "Jean" has defined their preferred activity zone as "15th - 16th arrondissement"
-    And driver "Paul" has no preferred activity zone defined
-    And both drivers are equally distant from the pickup point
-    When the matching engine runs
-    Then driver "Jean" is prioritized over driver "Paul"
 
   Scenario: No driver available in the area
     Given no driver is available within a 10 km radius of the pickup point
@@ -139,12 +154,32 @@ Feature: Driver Matching (Ride Request flow)
     Then driver "Jean" is excluded from the results
     And driver "Paul" is eligible for the ride proposal
 
-  Scenario: Scheduled ride matched close to departure time
+
+Feature: Scheduled Ride Matching
+  As the matching engine
+  I want to find an available Individual driver for a Scheduled Ride request
+  So that the passenger's planned trip is assigned at the right time
+  # Professional drivers do not participate in Scheduled Rides
+
+  Background:
+    Given a Scheduled Ride request with status "Requested" exists
+    And no suitable Ride Offer was found by the passenger
+
+  Scenario: Scheduled ride matched to Individual drivers only
+    Given the following drivers are available near the pickup point
+      | Driver  | Account Type  | Distance | Reputation Score |
+      | Jean    | Professional  | 1.0 km   | 4.8              |
+      | Alice   | Individual    | 1.5 km   | 4.6              |
+    When the matching engine processes the scheduled ride request
+    Then a ride proposal is sent to driver "Alice"
+    And driver "Jean" is excluded — Professional accounts do not handle Scheduled Rides
+
+  Scenario: Scheduled ride matching activates close to departure time
     Given a scheduled ride request planned for "2026-05-01 09:00"
     And it is currently "2026-05-01 08:45"
     When the matching engine processes scheduled rides
     Then the matching engine activates for this ride request
-    And a ride proposal is sent to the nearest eligible driver
+    And a ride proposal is sent to the nearest eligible Individual driver
 
 
 Feature: Carpooling Grouping

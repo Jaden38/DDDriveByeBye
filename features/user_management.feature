@@ -87,6 +87,11 @@ Feature: Professional Account Registration
     Then the action is rejected
     And an error "Ride Offers are only available to Individual accounts" is displayed
 
+  Scenario: Professional account cannot handle Scheduled Rides
+    Given "Jean" has an active Professional account
+    When a Scheduled Ride request is processed by the matching engine
+    Then "Jean" is excluded from the eligible driver pool
+
 
 Feature: Vehicle Profile Management
   As a driver (Individual or Professional)
@@ -129,10 +134,11 @@ Feature: Driver Availability Management
 
   Scenario: Professional driver activates availability
     Given the Professional driver "Jean" is active with a valid vehicle profile
+    And "Jean" has a defined Working Zone
     When "Jean" activates his availability
     Then his status changes to "Available"
     And his real-time GPS position is shared with the platform
-    And he becomes eligible for Immediate Ride matching
+    And he becomes eligible for Immediate Ride matching within his Working Zone only
 
   Scenario: Driver deactivates availability
     Given a driver is available and has no ongoing ride
@@ -153,11 +159,23 @@ Feature: Driver Availability Management
     Then the activation is rejected
     And an error "You cannot activate driver availability while you have an active ride as a passenger" is displayed
 
-  Scenario: Setting a preferred activity zone
-    Given a driver is on their preferences page
-    When they define their preferred activity zone as "15th - 16th arrondissement, Paris"
+  Scenario: Individual driver sets a preferred Activity Zone (soft filter)
+    Given the Individual driver "Alice" is on her preferences page
+    When she defines her Activity Zone as "15th - 16th arrondissement, Paris"
     Then rides outside this zone are deprioritized in matching
-    And the driver can still manually accept rides outside the zone
+    And "Alice" can still receive and accept ride proposals outside the zone
+
+  Scenario: Professional driver defines a Working Zone (hard constraint)
+    Given the Professional driver "Jean" is on his profile page
+    When he defines his Working Zone as "La Défense - Neuilly-sur-Seine"
+    Then "Jean" only receives Immediate Ride proposals within this Working Zone
+    And ride requests outside the Working Zone are never sent to "Jean"
+
+  Scenario: Professional driver cannot activate availability without a Working Zone
+    Given the Professional driver "Jean" has no Working Zone defined
+    When "Jean" attempts to activate his availability
+    Then the activation is rejected
+    And an error "You must define a Working Zone before activating your availability" is displayed
 
 
 Feature: Preferences and Ride Options

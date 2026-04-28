@@ -4,10 +4,10 @@
 #   - Ride Request flow: passenger-initiated, always for Immediate Rides, fallback for Scheduled Rides
 #   - Ride Offer flow:   driver-initiated, Scheduled Rides only
 # Account type rules:
-#   - Immediate Rides       → both Individual and Professional drivers
-#   - Scheduled Ride Requests → both Individual and Professional drivers
-#   - Ride Offers           → Individual drivers only (carpooling)
-#   - Passenger role        → Individual accounts only
+#   - Immediate Rides         → Individual AND Professional drivers
+#   - Scheduled Ride Requests → Individual drivers only
+#   - Ride Offers             → Individual drivers only
+#   - Passenger role          → Individual accounts only
 
 Feature: Ride Request
   As a user acting as a passenger
@@ -119,6 +119,12 @@ Feature: Ride Offer Publication
     When "Marc" attempts to publish a ride offer
     Then the publication is rejected
     And an error "Ride Offers are only available to Individual accounts" is displayed
+
+  Scenario: Professional account cannot respond to a scheduled ride request
+    Given the Professional driver "Marc" is available
+    When a Scheduled Ride request enters the matching engine
+    Then "Marc" is not included in the eligible driver pool
+    And only Individual drivers are considered
 
   Scenario: Ride offer cancelled by the driver before any passenger joins
     Given "Jean" has a ride offer in status "Published" with no passengers
