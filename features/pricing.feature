@@ -57,6 +57,14 @@ Feature: Dynamic Pricing Calculation
     Then the duration component of the fare accounts for the revised duration
     And the updated ETA is communicated to the passenger
 
+  Scenario: Price per seat automatically calculated when a ride offer is published
+    Given a driver publishes a ride offer with route "Lyon Part-Dieu → Paris Gare de Lyon" and 3 available seats
+    And no manual price is provided by the driver
+    When the pricing system calculates the fare at publication time
+    Then a price per seat is calculated based on route distance, duration, territorial rules, and current conditions
+    And the driver cannot override or modify this price
+    And the calculated price is displayed to the driver for information only
+
   Scenario: Different fare for carpooling grouping
     Given the ride is a carpooling ride with 2 grouped passengers
     When the system calculates the fare for each passenger

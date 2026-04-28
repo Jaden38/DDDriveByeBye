@@ -4,11 +4,11 @@
 
 ## Actors & Profiles
 
-**User**: Any person registered on the platform, regardless of their role. A user can be a Passenger, a Driver, or both. This term is used when a rule or feature applies equally to both roles (e.g., rating, penalty, suspension).
+**User**: Any person registered on the platform, regardless of their role. A user can act as a Passenger, a Driver, or both — but never simultaneously on the same ride. When a rule or feature applies equally to both roles (e.g., rating, penalty, suspension), the term User is used.
 
-**Passenger**: User who submits a ride request to travel from one point to another. They may have specific requirements (luggage, number of seats, specific options).
+**Passenger**: Role taken by a user when they are looking for or taking a ride. A user acting as a Passenger can search for existing Ride Offers or submit a Ride Request. A user with a Driver profile must deactivate their availability before acting as a Passenger.
 
-**Driver**: User who offers transportation services with their vehicle. They have a profile defining their availability, activity zones, ride preferences and vehicle characteristics.
+**Driver**: Role taken by a user when they are offering or driving a ride. A user acting as a Driver can publish a Ride Offer or respond to an open Ride Request. A user cannot act as a Driver and a Passenger at the same time on the same ride.
 
 **Activity Zone**: Geographic area in which a driver agrees to operate. A driver can have one or more activity zones.
 
@@ -18,21 +18,25 @@
 
 ---
 
-## Ride Request & Matching
+## Ride Offer & Ride Request
 
-**Ride Request**: Request submitted by a passenger indicating a pickup point, a destination, and optional constraints (desired time, number of seats, luggage, options). This is the triggering event for the entire process.
+**Ride Offer**: A ride published proactively by a user acting as a Driver, specifying a planned route, departure date and time, and available seats. The price per seat is calculated automatically by the Dynamic Pricing system at publication time based on route, territorial rules, and current conditions — the driver does not set it manually. Other users acting as Passengers can search for and join a Ride Offer. Ride Offers are specific to Scheduled Rides (carpooling mode).
 
-**Immediate Ride**: Ride request to be fulfilled as quickly as possible by assigning an available driver nearby (VTC / on-demand transport mode).
+**Ride Request**: Request submitted by a user acting as a Passenger, indicating a pickup point, a destination, and optional constraints (desired time, number of seats, luggage, options). For Scheduled Rides, a Ride Request is typically submitted after no suitable Ride Offer was found. For Immediate Rides, it is always the starting point.
 
-**Scheduled Ride**: Ride request planned in advance for a future date and time (scheduled carpooling mode).
+**Ride Search**: The action performed by a user acting as a Passenger to browse available Ride Offers before deciding to submit a Ride Request. A Ride Search is only applicable for Scheduled Rides.
 
-**Match**: Result of the matching process between a ride request and one or more compatible drivers, taking into account location, destination, preferences and constraints.
+**Immediate Ride**: A Ride Request to be fulfilled as quickly as possible by assigning a nearby available driver (VTC / on-demand mode). Always passenger-initiated via a Ride Request; Ride Offers do not apply.
+
+**Scheduled Ride**: A ride planned in advance for a future date and time (carpooling mode). Can be driver-initiated via a Ride Offer, or passenger-initiated via a Ride Request when no suitable Ride Offer exists.
+
+**Match**: Result of the matching process between a Ride Request or Ride Offer and compatible counterparts, taking into account location, destination, preferences, and constraints.
 
 **Grouping**: Pooling of multiple passengers with similar or compatible routes on the same ride (carpooling). The system identifies route overlaps to optimize grouping.
 
-**Ride Proposal**: Offer sent to one or more drivers matching a request. The driver can accept or decline within a given time limit.
+**Ride Proposal**: Notification sent to a user to confirm or finalise a match. In the Ride Request flow, it is sent to a Driver. In the Ride Offer flow, it is sent to the Passenger to confirm their seat reservation. The recipient can accept or decline within a given time limit.
 
-**Assignment**: Definitive association of a driver to a ride request following acceptance of a proposal.
+**Assignment**: Definitive association of a driver to a ride, or of a passenger to a Ride Offer seat, following acceptance of a Ride Proposal.
 
 ---
 
@@ -40,9 +44,10 @@
 
 **Ride Status**: Current state of a ride in its lifecycle. Possible statuses are:
 
-- **Requested**: The passenger has submitted their request; no proposal has been sent yet.
-- **Proposed**: A proposal has been sent to one or more drivers, awaiting response.
-- **Accepted**: A driver has accepted the proposal; the ride is confirmed.
+- **Requested**: The passenger has submitted a Ride Request; no proposal has been sent yet. (Ride Request flow only.)
+- **Published**: The driver has published a Ride Offer; no passenger has joined yet. (Ride Offer flow only.)
+- **Proposed**: A proposal has been sent awaiting response — either to a driver (Ride Request flow) or to a passenger confirming their seat (Ride Offer flow).
+- **Accepted**: The proposal has been accepted; the ride is confirmed.
 - **Picked Up**: The driver has arrived at the pickup point and the passenger has boarded.
 - **In Progress**: The vehicle is moving toward the destination.
 - **Arrived**: The passenger has been dropped off at the destination; the physical ride is complete.
@@ -62,7 +67,7 @@
 
 ## Pricing
 
-**Dynamic Pricing**: Pricing mechanism that adjusts ride prices in real time based on multiple criteria.
+**Dynamic Pricing**: Pricing mechanism that adjusts ride prices in real time based on multiple criteria. Applies to all ride types — Immediate Rides, passenger-initiated Scheduled Rides, and Ride Offers. The driver never sets the price manually; the pricing system always owns fare calculation.
 
 **Pricing Factors**: Set of criteria influencing the price: distance, estimated duration, real-time demand, driver availability, traffic conditions, geographic zone, territorial rules.
 

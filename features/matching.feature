@@ -1,10 +1,49 @@
 # Bounded Context: SUPPORTING DOMAIN — Matching
-# Finds compatible drivers for ride requests, handles grouping (carpooling),
-# and manages the full proposal/assignment cycle.
+# Handles matching in both directions:
+#   - Ride Request flow: finds a driver for a passenger's request (Immediate & Scheduled Rides)
+#   - Ride Offer flow: matches a passenger's search to existing published Ride Offers (Scheduled Rides)
 # Conforms to: Territorial Configuration, Geolocation & Routing
 # Customer-Supplier with: User Management
 
-Feature: Driver Matching
+Feature: Ride Search Matching (Ride Offer flow)
+  As the matching engine
+  I want to match a passenger's ride search to compatible published ride offers
+  So that passengers can join existing rides before submitting a new ride request
+
+  Background:
+    Given a user acting as a passenger has submitted a ride search
+    And the search specifies an origin, a destination, and a departure date
+    And the territory is covered by the platform
+
+  Scenario: Passenger matched to a compatible ride offer
+    Given the following ride offers are published
+      | Driver  | Departure origin  | Destination         | Date       | Time  | Seats | Price (system-calculated) |
+      | Jean    | Lyon Part-Dieu    | Paris Gare de Lyon  | 2026-05-10 | 08:00 | 3     | 25.00€                    |
+      | Paul    | Lyon Perrache     | Paris Bercy         | 2026-05-10 | 09:30 | 1     | 22.00€                    |
+    And the passenger searches for "Lyon → Paris" on "2026-05-10"
+    When the matching engine runs the ride search
+    Then both ride offers are returned as compatible results
+    And results are ranked by departure time proximity to the passenger's preferred time
+
+  Scenario: Ride offer excluded from search results when full
+    Given the ride offer by "Jean" has status "Full"
+    When the matching engine runs the ride search
+    Then "Jean"'s ride offer is excluded from results
+
+  Scenario: Ride offer excluded due to incompatible ride options
+    Given the passenger's ride search requires the ride option "wheelchair accessible"
+    And the ride offer by "Jean" does not support "wheelchair accessible"
+    When the matching engine runs the ride search
+    Then "Jean"'s ride offer is excluded from results due to incompatible vehicle profile
+
+  Scenario: No ride offer found — passenger falls back to ride request
+    Given no published ride offer matches the passenger's search criteria
+    When the matching engine finds no results
+    Then the passenger is informed "No ride offer found for your search"
+    And the passenger is offered the option to submit a ride request as a fallback
+
+
+Feature: Driver Matching (Ride Request flow)
   As the matching engine
   I want to find the most suitable available driver for a ride request
   So that the ride is assigned quickly and optimally
