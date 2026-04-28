@@ -3,3 +3,5 @@ dist
 .env
 package-lock.json*
 misc.xml
+/.claude/
+/target/

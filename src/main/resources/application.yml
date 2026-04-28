@@ -8,17 +8,13 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create-drop
     properties:
       hibernate:
         format_sql: true
         default_schema: public
   flyway:
-    enabled: true
-    schemas:
-      - users
-      - territory
-    create-schemas: true
+    enabled: false
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
