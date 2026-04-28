@@ -3,6 +3,11 @@
 # Two initiator flows feed into the same lifecycle:
 #   - Ride Request flow: passenger-initiated, always for Immediate Rides, fallback for Scheduled Rides
 #   - Ride Offer flow:   driver-initiated, Scheduled Rides only
+# Account type rules:
+#   - Immediate Rides       → both Individual and Professional drivers
+#   - Scheduled Ride Requests → both Individual and Professional drivers
+#   - Ride Offers           → Individual drivers only (carpooling)
+#   - Passenger role        → Individual accounts only
 
 Feature: Ride Request
   As a user acting as a passenger
@@ -29,19 +34,25 @@ Feature: Ride Request
     Then a ride request is created with status "Requested"
     And the ride is queued for matching close to the planned departure time
 
-  Scenario: User with a driver profile acts as a passenger
-    Given the user "Jean" has both a driver profile and a passenger account
-    And "Jean"'s driver availability is deactivated
-    And "Jean" has no ongoing ride as a driver
-    When "Jean" submits an immediate ride request as a passenger
-    Then a ride request is created for "Jean" in the passenger role
-    And "Jean"'s driver profile is not affected
+  Scenario: Individual user with a driver profile acts as a passenger
+    Given the Individual user "Alice" has an active driver profile
+    And "Alice"'s driver availability is deactivated
+    And "Alice" has no ongoing ride as a driver
+    When "Alice" submits an immediate ride request as a passenger
+    Then a ride request is created for "Alice" in the passenger role
+    And "Alice"'s driver profile is not affected
 
-  Scenario: User with active driver availability cannot submit a ride request
-    Given the user "Jean" has driver availability currently active
-    When "Jean" attempts to submit a ride request as a passenger
+  Scenario: Individual user with active driver availability cannot submit a ride request
+    Given the Individual user "Alice" has driver availability currently active
+    When "Alice" attempts to submit a ride request as a passenger
     Then the request is rejected
     And an error "Please deactivate your driver availability before requesting a ride as a passenger" is displayed
+
+  Scenario: Professional account cannot submit a ride request
+    Given the Professional driver "Jean" is logged in
+    When "Jean" attempts to submit a ride request as a passenger
+    Then the request is rejected
+    And an error "Professional accounts cannot act as a passenger" is displayed
 
   Scenario: Ride request rejected for suspended account
     Given the user "Bob" has an active restriction of type "Suspension"
@@ -102,6 +113,12 @@ Feature: Ride Offer Publication
     When "Jean" attempts to publish a ride offer
     Then the publication is rejected
     And an error "Please deactivate your availability before publishing a scheduled ride offer" is displayed
+
+  Scenario: Professional account cannot publish a ride offer
+    Given the Professional driver "Marc" is logged in
+    When "Marc" attempts to publish a ride offer
+    Then the publication is rejected
+    And an error "Ride Offers are only available to Individual accounts" is displayed
 
   Scenario: Ride offer cancelled by the driver before any passenger joins
     Given "Jean" has a ride offer in status "Published" with no passengers

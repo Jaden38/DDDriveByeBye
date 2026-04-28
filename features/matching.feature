@@ -2,6 +2,9 @@
 # Handles matching in both directions:
 #   - Ride Request flow: finds a driver for a passenger's request (Immediate & Scheduled Rides)
 #   - Ride Offer flow: matches a passenger's search to existing published Ride Offers (Scheduled Rides)
+# Account type rules enforced by the matching engine:
+#   - Immediate and Scheduled Ride requests → both Individual and Professional drivers eligible
+#   - Ride Offer searches                   → Individual drivers only (carpooling)
 # Conforms to: Territorial Configuration, Geolocation & Routing
 # Customer-Supplier with: User Management
 
@@ -9,9 +12,10 @@ Feature: Ride Search Matching (Ride Offer flow)
   As the matching engine
   I want to match a passenger's ride search to compatible published ride offers
   So that passengers can join existing rides before submitting a new ride request
+  # Ride Offers are published by Individual drivers only (carpooling)
 
   Background:
-    Given a user acting as a passenger has submitted a ride search
+    Given an Individual user acting as a passenger has submitted a ride search
     And the search specifies an origin, a destination, and a departure date
     And the territory is covered by the platform
 
@@ -54,10 +58,10 @@ Feature: Driver Matching (Ride Request flow)
 
   Scenario: Successful match with the nearest available driver
     Given the following drivers are available near the pickup point
-      | Driver  | Distance | Reputation Score | Restrictions |
-      | Jean    | 1.2 km   | 4.8              | none         |
-      | Paul    | 2.5 km   | 4.5              | none         |
-      | Marc    | 0.9 km   | 2.9              | Suspension   |
+      | Driver  | Account Type  | Distance | Reputation Score | Restrictions |
+      | Jean    | Professional  | 1.2 km   | 4.8              | none         |
+      | Paul    | Individual    | 2.5 km   | 4.5              | none         |
+      | Marc    | Professional  | 0.9 km   | 2.9              | Suspension   |
     When the matching engine runs
     Then a ride proposal is sent to driver "Jean" (nearest eligible driver)
     And driver "Marc" is excluded due to active Suspension restriction
