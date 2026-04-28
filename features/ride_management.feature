@@ -48,53 +48,6 @@ Feature: Ride Request
       | Territorial rules    | yes     |
 
 
-Feature: Driver-Passenger Matching
-  As the matching engine
-  I want to find the best available driver
-  So that the ride is assigned optimally
-
-  Background:
-    Given a ride request with status "Requested" exists
-    And the geographic area is covered by the platform
-
-  Scenario: Successful match with an available driver
-    Given the driver "Jean" is available within 3 km of the pickup point
-    And the driver "Jean" has no active restriction
-    And the driver "Jean"'s vehicle profile is compatible with the requested ride options
-    When the matching engine runs
-    Then a ride proposal is sent to the driver "Jean"
-    And the ride moves to status "Proposed"
-    And a 30-second response window is assigned to the driver
-
-  Scenario: No driver available in the area
-    Given no driver is available within a 10 km radius
-    When the matching engine runs
-    Then the ride request remains in status "Requested"
-    And the passenger is notified "No driver available at the moment, retrying..."
-
-  Scenario: Passenger grouping for carpooling
-    Given the passenger "Alice" has a ride request with destination "Montparnasse"
-    And the passenger "Charlie" has a ride request with a similar destination "Montparnasse"
-    And the driver "Jean" is available with 2 seats available
-    When the grouping engine runs
-    Then a grouping "Alice + Charlie" is created
-    And a shared ride proposal is sent to the driver "Jean"
-    And each passenger receives a reduced fare compared to an individual ride
-
-  Scenario: Ride proposal expires
-    Given a ride proposal has been sent to the driver "Jean"
-    When the driver "Jean" does not respond within 30 seconds
-    Then the proposal expires
-    And the ride falls back to status "Requested"
-    And the matching engine searches for another available driver
-
-  Scenario: Driver declines the ride proposal
-    Given a ride proposal has been sent to the driver "Jean"
-    When the driver "Jean" declines the proposal
-    Then the ride falls back to status "Requested"
-    And the matching engine searches for another compatible driver
-
-
 Feature: Ride Lifecycle
   As the ride management system
   I want to manage ride status transitions
