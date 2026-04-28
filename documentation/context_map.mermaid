@@ -1,0 +1,64 @@
+---
+config:
+  layout: elk
+---
+flowchart TB
+    subgraph GENERIC["⚙️ GENERIC"]
+        direction LR
+        GE["<b>Geolocation & Routing</b><br/><i>Position, ETA, routing</i>"]
+        NO["<b>Notification</b><br/><i>Alerts, communications</i>"]
+        PA["<b>Payment</b><br/><i>Stripe / external provider</i>"]
+    end
+
+    subgraph SUPPORTING["🔧 SUPPORTING"]
+        direction LR
+        TC["<b>Territorial Configuration</b><br/><i>Rules, regulations, zones</i>"]
+        UM["<b>User Management</b><br/><i>Profiles, vehicles, availability</i>"]
+        MA["<b>Matching</b><br/><i>Correspondance, grouping</i>"]
+        PR["<b>Pricing</b><br/><i>Dynamic pricing, promos</i>"]
+        RE["<b>Reputation</b><br/><i>Ratings, penalties</i>"]
+    end
+
+    subgraph CORE["⭐ CORE DOMAIN"]
+        RM["<b>Ride Management</b><br/><i>Trip lifecycle, state machine</i>"]
+    end
+
+    MA -->|Customer-Supplier| TC
+    MA -->|Conformist| GE
+    MA -->|Customer-Supplier| UM
+    PR -->|Conformist| GE
+    PR -->|Customer-Supplier| TC
+    RM -->|Customer-Supplier| MA
+    RM -->|Customer-Supplier| PR
+    RM -->|Conformist| PA
+    RM -->|Customer-Supplier| RE
+    RM -->|Customer-Supplier| TC
+    RE -->|Customer-Supplier| UM
+    RM -.->|Published Language / Open Host Service| NO
+
+    linkStyle default stroke:#ffffff,stroke-width:1.5px,color:#ffffff
+
+    classDef coreStyle fill:#2a1515,stroke:#c75a3a,stroke-width:2px,color:#f5c4b3
+    classDef supportingStyle fill:#1a1a28,stroke:#555,stroke-width:1px,color:#ccc
+    classDef genericStyle fill:#1a1a1e,stroke:#444,stroke-width:1px,color:#999
+    classDef tcStyle fill:#3a3520,stroke:#a08c3e,color:#f0e6b8
+    classDef umStyle fill:#1a3530,stroke:#2e8b6e,color:#a8e6d0
+    classDef maStyle fill:#2a2040,stroke:#7b68ae,color:#d4c8f0
+    classDef geStyle fill:#1a2a40,stroke:#4682b4,color:#b0d4f1
+    classDef prStyle fill:#1e3218,stroke:#5a9e34,color:#c0dd97
+    classDef reStyle fill:#35182a,stroke:#a0466e,color:#f0b8d0
+    classDef paStyle fill:#301818,stroke:#a03030,color:#f5b0b0
+    classDef noStyle fill:#28282e,stroke:#777,color:#ccc
+
+    class CORE coreStyle
+    class SUPPORTING supportingStyle
+    class GENERIC genericStyle
+    class TC tcStyle
+    class UM umStyle
+    class MA maStyle
+    class GE geStyle
+    class RM coreStyle
+    class PR prStyle
+    class RE reStyle
+    class PA paStyle
+    class NO noStyle
