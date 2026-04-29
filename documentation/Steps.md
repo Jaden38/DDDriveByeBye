@@ -14,12 +14,17 @@ Stack note: implemented in Java 21 / Spring Boot 3.3 (not NestJS as originally p
 - ⏳ Tests deferred — TECHNICAL_SPECS.md requires 100% on domain, >80% on application handlers, plus Cucumber bindings for `features/user_management.feature` and `features/territorial_configuration.feature`. To be picked up before closing Step 1.
 
 ---
-Task 2 — Geolocation
+Task 2 — Geolocation ✅ DONE
 
 Why alone: Technically distinct (Redis GEO + PostGIS), foundational for Matching and Pricing.
-- geolocation module — real-time driver position (Redis GEO commands), route calculation, ETA
-- MockRoutingAdapter for Google Maps
-- Expose getDriversWithinRadius, calculateRoute, getEta, updateDriverPosition
+- ✅ geolocation module — `RealTimePosition` aggregate (Redis GEO commands via `RedisDriverPositionRepository`), `Route` aggregate (PostGIS-backed `geo.routes` table), `Eta` value object
+- ✅ `MockRoutingAdapter` (haversine distance, 30 km/h average duration, fixed 5-min ETA)
+- ✅ `GeolocationFacade` exposes `updateDriverPosition`, `removeDriverPosition`, `getDriverPosition`, `getDriversWithinRadius`, `calculateRoute`, `getEta`
+- ✅ REST controller at `/api/geolocation`
+- ✅ `DriverAvailabilityChangedEvent` listener removes the driver from the GEO set when going OFFLINE
+- ✅ Flyway migration `V2__geolocation.sql` — `geo` schema + `geo.routes` with PostGIS GIST index
+- ✅ Unit tests (39 tests, all green) — domain VOs (`Eta`, `DriverId`, `RouteId`), domain entities (`RealTimePosition`, `Route`), `MockRoutingAdapter`, and application handlers (`GeolocationCommandHandler`, `GeolocationQueryHandler`, `DriverAvailabilityEventHandler`)
+- ⏳ Cucumber bindings for `features/geolocation.feature` still pending (consistent with Task 1)
 
 ---
 Task 3 — Ride Management (Core Domain)
