@@ -109,13 +109,6 @@ public class Territory {
         return active && zone.covers(point);
     }
 
-    public TerritorialRule mergedRulesWithFallback(Territory fallback) {
-        if (fallback == null) {
-            return rule;
-        }
-        return rule;
-    }
-
     public List<RegulatoryConstraint> constraintsList() {
         return new ArrayList<>(constraints);
     }
