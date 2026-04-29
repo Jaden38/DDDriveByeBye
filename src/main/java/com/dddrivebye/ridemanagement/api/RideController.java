@@ -37,6 +37,42 @@ public class RideController {
         return ResponseEntity.created(location).build();
     }
 
+    @PostMapping("/{id}/propose")
+    public ResponseEntity<Void> proposeDriver(@PathVariable UUID id, @RequestBody UUID driverId) {
+        facade.proposeDriver(id, driverId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/accept")
+    public ResponseEntity<Void> acceptRide(@PathVariable UUID id) {
+        facade.acceptRide(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/pickup")
+    public ResponseEntity<Void> pickUpPassenger(@PathVariable UUID id) {
+        facade.pickUpPassenger(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/start")
+    public ResponseEntity<Void> startRide(@PathVariable UUID id) {
+        facade.startRide(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/arrive")
+    public ResponseEntity<Void> arriveAtDestination(@PathVariable UUID id) {
+        facade.arriveAtDestination(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/finalize")
+    public ResponseEntity<Void> finalizeRide(@PathVariable UUID id) {
+        facade.finalizeRide(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<RideDto> getRide(@PathVariable UUID id) {
         return facade.getRideById(id)

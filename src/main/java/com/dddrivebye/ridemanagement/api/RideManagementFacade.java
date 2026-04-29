@@ -22,6 +22,30 @@ public class RideManagementFacade {
         return commandHandler.handle(command);
     }
 
+    public void proposeDriver(UUID rideId, UUID driverId) {
+        commandHandler.handle(new ProposeDriverCommand(rideId, driverId));
+    }
+
+    public void acceptRide(UUID rideId) {
+        commandHandler.handle(new AcceptRideCommand(rideId));
+    }
+
+    public void pickUpPassenger(UUID rideId) {
+        commandHandler.handle(new PickUpPassengerCommand(rideId));
+    }
+
+    public void startRide(UUID rideId) {
+        commandHandler.handle(new StartRideCommand(rideId));
+    }
+
+    public void arriveAtDestination(UUID rideId) {
+        commandHandler.handle(new ArriveAtDestinationCommand(rideId));
+    }
+
+    public void finalizeRide(UUID rideId) {
+        commandHandler.handle(new FinalizeRideCommand(rideId));
+    }
+
     public Optional<RideDto> getRideById(UUID rideId) {
         return queryHandler.handle(new GetRideByIdQuery(rideId));
     }

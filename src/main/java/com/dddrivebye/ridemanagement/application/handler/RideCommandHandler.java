@@ -30,8 +30,65 @@ public class RideCommandHandler {
         
         rides.save(ride);
         
-        ride.pullDomainEvents().forEach(eventPublisher::publish);
+        publishEvents(ride);
         
         return ride.id().value();
+    }
+
+    @Transactional
+    public void handle(ProposeDriverCommand command) {
+        Ride ride = getRide(command.rideId());
+        ride.propose(UserId.of(command.driverId()));
+        rides.save(ride);
+        publishEvents(ride);
+    }
+
+    @Transactional
+    public void handle(AcceptRideCommand command) {
+        Ride ride = getRide(command.rideId());
+        ride.accept();
+        rides.save(ride);
+        publishEvents(ride);
+    }
+
+    @Transactional
+    public void handle(PickUpPassengerCommand command) {
+        Ride ride = getRide(command.rideId());
+        ride.pickUp();
+        rides.save(ride);
+        publishEvents(ride);
+    }
+
+    @Transactional
+    public void handle(StartRideCommand command) {
+        Ride ride = getRide(command.rideId());
+        ride.start();
+        rides.save(ride);
+        publishEvents(ride);
+    }
+
+    @Transactional
+    public void handle(ArriveAtDestinationCommand command) {
+        Ride ride = getRide(command.rideId());
+        ride.arrive();
+        rides.save(ride);
+        publishEvents(ride);
+    }
+
+    @Transactional
+    public void handle(FinalizeRideCommand command) {
+        Ride ride = getRide(command.rideId());
+        ride.finalizeRide();
+        rides.save(ride);
+        publishEvents(ride);
+    }
+
+    private Ride getRide(UUID id) {
+        return rides.findById(RideId.of(id))
+                .orElseThrow(() -> new com.dddrivebye.ridemanagement.domain.exception.RideNotFoundException(RideId.of(id)));
+    }
+
+    private void publishEvents(Ride ride) {
+        ride.pullDomainEvents().forEach(eventPublisher::publish);
     }
 }
