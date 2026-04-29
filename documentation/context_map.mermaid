@@ -23,12 +23,21 @@ flowchart TB
         RM["<b>Ride Management</b><br/><i>Trip lifecycle, state machine</i>"]
     end
 
+    subgraph KERNEL["🧩 SHARED PRIMITIVES (shared/)"]
+        SK["<b>Money, GeoCoordinates, DateRange,<br/>BaseDomainEvent, DomainEventPublisher</b><br/><i>Cross-cutting value objects + event bus</i>"]
+    end
+
+    %% Partnership: bidirectional event flow, shared fate.
+    %% RM emits RideRequestedEvent (MA consumes), MA emits MatchFoundEvent (RM consumes).
+    RM <-->|Partnership| MA
+
+    %% Anticorruption Layer: matching defines GeolocationPort, infra ships an adapter.
+    MA -->|Anticorruption Layer| GE
+
     MA -->|Customer-Supplier| TC
-    MA -->|Conformist| GE
     MA -->|Customer-Supplier| UM
-    PR -->|Conformist| GE
+    PR -->|Anticorruption Layer| GE
     PR -->|Customer-Supplier| TC
-    RM -->|Customer-Supplier| MA
     RM -->|Customer-Supplier| PR
     RM -->|Conformist| PA
     RM -->|Customer-Supplier| RE
@@ -36,11 +45,24 @@ flowchart TB
     RE -->|Customer-Supplier| UM
     RM -.->|Published Language / Open Host Service| NO
 
+    %% Every bounded context depends on the shared primitives.
+    SK -.->|Shared Kernel| RM
+    SK -.->|Shared Kernel| MA
+    SK -.->|Shared Kernel| GE
+    SK -.->|Shared Kernel| TC
+    SK -.->|Shared Kernel| UM
+    SK -.->|Shared Kernel| PR
+    SK -.->|Shared Kernel| RE
+    SK -.->|Shared Kernel| PA
+    SK -.->|Shared Kernel| NO
+
     linkStyle default stroke:#ffffff,stroke-width:1.5px,color:#ffffff
 
     classDef coreStyle fill:#2a1515,stroke:#c75a3a,stroke-width:2px,color:#f5c4b3
     classDef supportingStyle fill:#1a1a28,stroke:#555,stroke-width:1px,color:#ccc
     classDef genericStyle fill:#1a1a1e,stroke:#444,stroke-width:1px,color:#999
+    classDef kernelStyle fill:#1a2820,stroke:#5a8e6e,stroke-width:1px,color:#a8d0b8
+    classDef skStyle fill:#152018,stroke:#5a8e6e,color:#c0e0c8
     classDef tcStyle fill:#3a3520,stroke:#a08c3e,color:#f0e6b8
     classDef umStyle fill:#1a3530,stroke:#2e8b6e,color:#a8e6d0
     classDef maStyle fill:#2a2040,stroke:#7b68ae,color:#d4c8f0
@@ -53,6 +75,8 @@ flowchart TB
     class CORE coreStyle
     class SUPPORTING supportingStyle
     class GENERIC genericStyle
+    class KERNEL kernelStyle
+    class SK skStyle
     class TC tcStyle
     class UM umStyle
     class MA maStyle
