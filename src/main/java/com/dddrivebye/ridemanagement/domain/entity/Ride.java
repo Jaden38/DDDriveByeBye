@@ -1,5 +1,6 @@
 package com.dddrivebye.ridemanagement.domain.entity;
 
+import com.dddrivebye.ridemanagement.domain.event.RideRequestedEvent;
 import com.dddrivebye.ridemanagement.domain.valueobject.RideId;
 import com.dddrivebye.shared.domain.event.BaseDomainEvent;
 import com.dddrivebye.shared.domain.valueobject.GeoCoordinates;
@@ -33,7 +34,9 @@ public class Ride {
     }
 
     public static Ride create(UserId passengerId, GeoCoordinates pickupPoint, GeoCoordinates destination, int requestedSeats) {
-        return new Ride(RideId.generate(), passengerId, pickupPoint, destination, requestedSeats, new RequestedState());
+        Ride ride = new Ride(RideId.generate(), passengerId, pickupPoint, destination, requestedSeats, new RequestedState());
+        ride.addEvent(new RideRequestedEvent(ride.id, passengerId, pickupPoint, destination, requestedSeats));
+        return ride;
     }
 
     public static Ride reconstitute(RideId id, UserId passengerId, UserId driverId, 

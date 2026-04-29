@@ -36,13 +36,24 @@ reacts to.
 - BullMQ producers (enqueue matching, pricing jobs)
 
 ---
-Task 4 — Matching
+Task 4 — Matching ✅ DONE (tests deferred)
 
 Why alone: Algorithmically the most complex supporting domain — depends on Task 1 + 2 interfaces.
-- matching module — Immediate Ride matching (Individual + Professional, Working Zone hard filter, Activity Zone soft filter), Scheduled Ride matching (Individual
-only), Grouping engine (carpooling)
-- BullMQ queue consumer for matching queue
-- Uses user-management and geolocation interfaces (mock them until Tasks 1 & 2 are ready)
+
+- ✅ matching module — `Match` aggregate with state machine (`SEARCHING` → `PROPOSED` → `ACCEPTED`/`UNMATCHED`/`CANCELLED`), 30-second proposal window, 5-attempt rematch ceiling, exclusion of declined drivers
+- ✅ Immediate Ride matching — Individual + Professional eligible; Professional Working-Zone hard filter; Individual Activity-Zone soft prioritisation (`DriverRanking` domain service: zone, then reputation, then proximity)
+- ✅ Scheduled Ride matching — Individual drivers only (`RideKind.SCHEDULED` filters Professional out at the user-management facade call)
+- ✅ Grouping engine — `Grouping` aggregate; opt-in carpooling, shared destination, configurable pickup-proximity radius, seat capacity check; dissolved on passenger cancellation
+- ✅ Ride-Offer search — published-offer query via `RideOfferCatalogPort`, ranked by departure-time proximity, excludes "Full" and option-incompatible offers
+- ✅ Public facade `MatchingFacade` with command (`run/accept/decline/expire/cancel`, grouping eval/dissolve) and query methods (`getMatchForRide`, `searchRideOffers`)
+- ✅ REST controller at `/api/matching`
+- ✅ Domain events (`MatchProposalSentEvent`, `MatchFoundEvent`, `MatchFailedEvent`, `GroupingCreatedEvent`, `GroupingDissolvedEvent`) drained from aggregates and published via `SpringDomainEventPublisher`
+- ✅ Persistence in `matching` schema — Flyway `V4__matching.sql`, tables `matches` / `match_exclusions` / `groupings` / `grouping_members`
+- ✅ Ports for not-yet-implemented modules — `GeolocationPort`, `ReputationPort`, `RideOfferCatalogPort` with stub adapters that activate by default and step aside under explicit profiles (`geolocation-real`, `reputation-real`, `ride-management-real`)
+- ✅ BullMQ-equivalent async pipeline (Spring-native) — `MatchingTriggerListener` (`@Async @EventListener`) consumes `RideRequestedEvent` from ride-management on a dedicated `matchingTaskExecutor` pool, resolves the territory via `TerritorialConfigurationFacade`, then dispatches `RunImmediateMatchingCommand`. `ProposalExpiryScheduler` schedules an `ExpireProposalCommand` at the proposal deadline via `matchingTaskScheduler` — the delayed-job equivalent. In-JVM only; swap for Redis Streams when the deployment goes distributed.
+- ✅ Cross-module wiring with ride-management — `RideRequestedEvent` added to ride-management's `Ride.create(...)`; matching's listener picks it up automatically via Spring's `ApplicationEventPublisher`.
+- ⏳ Cucumber bindings against `features/matching.feature` still pending (consistent with Steps 1–3).
+- ⏳ BullMQ queue consumer not implemented; the facade is invoked synchronously for now. To be wired once an async dispatcher is introduced.
 
 ---
 Task 5 — Pricing + Payment + Reputation + Notification
