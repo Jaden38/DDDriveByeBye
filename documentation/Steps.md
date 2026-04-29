@@ -48,9 +48,11 @@ Why alone: Algorithmically the most complex supporting domain — depends on Tas
 - ✅ Public facade `MatchingFacade` with command (`run/accept/decline/expire/cancel`, grouping eval/dissolve) and query methods (`getMatchForRide`, `searchRideOffers`)
 - ✅ REST controller at `/api/matching`
 - ✅ Domain events (`MatchProposalSentEvent`, `MatchFoundEvent`, `MatchFailedEvent`, `GroupingCreatedEvent`, `GroupingDissolvedEvent`) drained from aggregates and published via `SpringDomainEventPublisher`
-- ✅ Persistence in `matching` schema — Flyway `V2__matching.sql`, tables `matches` / `match_exclusions` / `groupings` / `grouping_members`
+- ✅ Persistence in `matching` schema — Flyway `V4__matching.sql`, tables `matches` / `match_exclusions` / `groupings` / `grouping_members`
 - ✅ Ports for not-yet-implemented modules — `GeolocationPort`, `ReputationPort`, `RideOfferCatalogPort` with stub adapters that activate by default and step aside under explicit profiles (`geolocation-real`, `reputation-real`, `ride-management-real`)
-- ⏳ Tests deferred — domain unit tests, application handler tests with mocked repositories/facades, and Cucumber bindings against `features/matching.feature`. To be picked up before closing Step 4.
+- ✅ BullMQ-equivalent async pipeline (Spring-native) — `MatchingTriggerListener` (`@Async @EventListener`) consumes `RideRequestedEvent` from ride-management on a dedicated `matchingTaskExecutor` pool, resolves the territory via `TerritorialConfigurationFacade`, then dispatches `RunImmediateMatchingCommand`. `ProposalExpiryScheduler` schedules an `ExpireProposalCommand` at the proposal deadline via `matchingTaskScheduler` — the delayed-job equivalent. In-JVM only; swap for Redis Streams when the deployment goes distributed.
+- ✅ Cross-module wiring with ride-management — `RideRequestedEvent` added to ride-management's `Ride.create(...)`; matching's listener picks it up automatically via Spring's `ApplicationEventPublisher`.
+- ⏳ Cucumber bindings against `features/matching.feature` still pending (consistent with Steps 1–3).
 - ⏳ BullMQ queue consumer not implemented; the facade is invoked synchronously for now. To be wired once an async dispatcher is introduced.
 
 ---

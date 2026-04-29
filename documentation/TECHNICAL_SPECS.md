@@ -18,7 +18,8 @@
 9. [Redis Conventions](#9-redis-conventions)
 10. [Mock External Services](#10-mock-external-services)
 11. [Testing Conventions](#11-testing-conventions)
-12. [Bounded Context Reference Sheet](#12-bounded-context-reference-sheet)
+12. [Async Pipeline (BullMQ Equivalent)](#12-async-pipeline-bullmq-equivalent)
+13. [Bounded Context Reference Sheet](#13-bounded-context-reference-sheet)
 
 ---
 
@@ -38,16 +39,22 @@ Key rules:
 
 | Layer | Technology | Version |
 |---|---|---|
-| Language | Java | 21 |
+| Language | Java | 21 (build also runs on 23/24 — see Lombok note below) |
 | Framework | Spring Boot | 3.3.5 |
 | ORM | Spring Data JPA / Hibernate | (via Spring Boot parent) |
 | Primary database | PostgreSQL + PostGIS | 15 / 3.x |
 | Cache & real-time | Redis | 7.x |
 | Schema migrations | Flyway | (via Spring Boot parent) |
 | Validation | Spring Boot Validation (Bean Validation 3) | (via Spring Boot parent) |
-| Testing | JUnit 5 + Testcontainers | latest |
+| Boilerplate reduction | Lombok | 1.18.38 |
+| Async / scheduling | Spring `@EnableAsync` + `TaskScheduler` | (via Spring Boot parent) |
+| Testing | JUnit 5 + Mockito + AssertJ + Testcontainers | latest |
 | BDD | Cucumber (to be wired) | latest |
 | Containerisation | Docker + Docker Compose | latest |
+
+**Lombok wiring.** Since JDK 23 the compiler default is `-proc:none`, which silently disables annotation processors. The build wires Lombok explicitly through `<annotationProcessorPaths>` on `maven-compiler-plugin` and excludes it from the Spring Boot fat jar. Use Lombok sparingly — only for boilerplate reduction on JPA entities, request/response payloads, and final-fields-only services. Domain entities, value objects, and aggregates stay hand-written so DDD invariants live in plain Java.
+
+**Mockito + JDK 21+.** Mockito's default inline mock-maker can't redefine classes on JDK 21+ unless the byte-buddy agent is attached. The project ships `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` set to `mock-maker-subclass`, which works without the agent. Trade-off: cannot mock final classes / static methods. Override per-test via `Mockito.mock(..., withSettings().mockMaker(...))` if you need that.
 
 ---
 
@@ -131,15 +138,26 @@ pom.xml
 ├── application/
 │   ├── command/           # Command records (write intent)
 │   ├── query/             # Query records (read intent)
-│   └── handler/           # CommandHandlers and QueryHandlers (use cases)
+│   ├── handler/           # CommandHandlers and QueryHandlers (use cases)
+│   ├── port/              # (optional) Interfaces describing what the module needs from
+│   │                      #   not-yet-implemented modules — paired with stub adapters
+│   │                      #   under infrastructure/adapters/. See matching's GeolocationPort.
+│   └── async/             # (optional) @Async @EventListener consumers and TaskScheduler
+│                          #   bindings — the module's "queue worker" entry points.
+│                          #   See §12 for the project-wide async pipeline.
 ├── domain/
 │   ├── entity/            # Aggregates and child entities (pure Java, no Spring/JPA annotations)
 │   ├── valueobject/       # Immutable value objects specific to this module
 │   ├── event/             # Domain events emitted by this module
 │   ├── exception/         # Domain exceptions
-│   └── repository/        # Repository interfaces (no implementation here)
+│   ├── repository/        # Repository interfaces (no implementation here)
+│   └── service/           # (optional) Pure-Java domain services — multi-aggregate
+│                          #   logic that doesn't belong on a single entity.
+│                          #   See matching's DriverRanking.
 └── infrastructure/
-    └── persistence/       # JPA entities, Spring Data repositories, repository implementations
+    ├── persistence/       # JPA entities, Spring Data repositories, repository implementations
+    └── adapters/          # (optional) Adapters for external services or stub adapters
+                           #   for not-yet-implemented sibling modules.
 ```
 
 ---
@@ -472,6 +490,10 @@ public class OnDriverAvailabilityChangedListener {
 }
 ```
 
+**Domain-event classes are the only sanctioned exception** to the "no imports from another module's domain" rule: the listener must reference the published event type. Treat the event class — its name, package path, fields, and emission contract — as part of the **public API** of the producing module. Adding fields is fine; renaming or removing them is a breaking change. Place all events under `domain/event/` so they're easy to enumerate.
+
+For *delayed* or *retry* jobs (e.g. matching's 30-second proposal expiry), use Spring's `TaskScheduler` from inside an `@EventListener`. See §12.
+
 ### Allowed dependency directions (from context map)
 
 | Module | May call facade of |
@@ -538,9 +560,23 @@ The domain repository interface is implemented by a `@Repository` class that use
 
 All schemas and tables are created by Flyway. Migration scripts live in `src/main/resources/db/migration/` and follow the naming convention `V{version}__{description}.sql`.
 
-The initial migration (`V1__init.sql`) creates the PostGIS extension, all schemas, all tables, and all indexes.
+The initial migration (`V1__init.sql`) creates the PostGIS extension and the `users` and `territory` schemas.
 
 Flyway is **disabled** in the test profile — tests use `spring.jpa.hibernate.ddl-auto: create-drop` with H2 in-memory.
+
+#### Version registry
+
+Flyway requires unique version numbers across the whole `db/migration/` directory. To prevent collisions when multiple modules merge in parallel, **claim a version in this table before opening a PR**:
+
+| Version | Module | File |
+|---|---|---|
+| V1 | bootstrap | `V1__init.sql` (PostGIS, `users`, `territory`) |
+| V2 | geolocation | `V2__geolocation.sql` (`geo` schema) |
+| V3 | _reserved_ | _to renumber the duplicate `V2__ride_management.sql` currently on main_ |
+| V4 | matching | `V4__matching.sql` (`matching` schema) |
+| V5+ | available | claim sequentially: pricing, payment, reputation, notification |
+
+If two PRs land at the same version, the later one renumbers — never edit a published migration in place.
 
 ### Cross-schema joins are forbidden
 
@@ -613,13 +649,23 @@ payment/infrastructure/adapters/MockPaymentAdapter.java
 - `charge(amount, currency, customerId)` → always returns a successful mock transaction
 - `refund(transactionId, amount)` → always returns success
 
-### Routing & Maps (Google Maps mock)
+### Routing & Maps (Google Maps mock) ✅ Implemented
 
 ```
-geolocation/infrastructure/adapters/MockRoutingAdapter.java
+geolocation/infrastructure/adapter/MockRoutingAdapter.java
 ```
-- `calculateRoute(origin, destination)` → distance from Haversine formula, fixed speed assumption
+- `calculateRoute(origin, destination)` → distance from Haversine formula, 30 km/h average duration
 - `getEta(driverPosition, pickupPoint)` → fixed 5-minute ETA
+
+### Stub adapters for not-yet-implemented sibling modules
+
+When module A needs module B's facade but B isn't built yet, A defines a **port** under `application/port/` and ships a **stub adapter** under `infrastructure/adapters/`. The stub returns the most permissive empty / neutral result so A can boot end-to-end. Switch to the real implementation behind a Spring profile.
+
+| Module | Port | Stub adapter | Real-implementation profile |
+|---|---|---|---|
+| matching | `GeolocationPort` | `StubGeolocationAdapter` | `geolocation-real` |
+| matching | `ReputationPort` | `StubReputationAdapter` | `reputation-real` |
+| matching | `RideOfferCatalogPort` | `StubRideOfferCatalogAdapter` | `ride-management-real` |
 
 ### Push Notifications (FCM mock)
 
@@ -693,30 +739,79 @@ features/territorial_configuration.feature  →  tests bound to step definitions
 
 ---
 
-## 12. Bounded Context Reference Sheet
+## 12. Async Pipeline (BullMQ Equivalent)
 
-### ride-management ⭐ Core Domain
+The original system design called out BullMQ producers in ride-management and a BullMQ consumer in matching. BullMQ is Node-only; the Java/Spring equivalent in this codebase is:
 
-| | |
-|---|---|
-| **Owns** | Ride, RideRequest, RideOffer, RideStatus state machine |
-| **Exposes** | `createRideRequest`, `createRideOffer`, `getRideById`, `getRidesByPassenger` |
-| **Emits** | `RideRequestedEvent`, `RideOfferedEvent`, `RideAcceptedEvent`, `RidePickedUpEvent`, `RideInProgressEvent`, `RideArrivedEvent`, `RideFinalizedEvent`, `RideCancelledEvent`, `RideIncidentEvent` |
-| **Listens to** | `PaymentProcessedEvent` (to finalize), `MatchFoundEvent` (to move to Proposed) |
-| **Schema** | `ride` |
+- **Spring `@Async` + `ApplicationEventPublisher`** as the queue itself — a producer publishes a domain event, the consumer's `@Async @EventListener` runs on a dedicated thread pool. No external broker.
+- **Spring `TaskScheduler`** as the delayed-job mechanism — for one-shot timers like the 30-second proposal expiry.
+
+### Where it lives
+
+Each module that consumes async jobs adds an `application/async/` package containing:
+- A `<Module>AsyncConfig` with `@EnableAsync` + `@EnableScheduling` and dedicated `ThreadPoolTaskExecutor` / `ThreadPoolTaskScheduler` beans (named `<module>TaskExecutor` / `<module>TaskScheduler`).
+- Listener `@Component`s — `@Async("<module>TaskExecutor") @EventListener` for instant work, plain `@EventListener` that schedule via `TaskScheduler` for delayed work.
+
+### Reference implementation (matching)
+
+| Listener | Trigger | Action |
+|---|---|---|
+| `MatchingTriggerListener` | `RideRequestedEvent` | Resolves territory via `TerritorialConfigurationFacade`, runs `MatchingFacade.runImmediateMatching(...)` on `matchingTaskExecutor` |
+| `ProposalExpiryScheduler` | `MatchProposalSentEvent` | Schedules `MatchingFacade.expireProposal(rideId)` for `event.expiresAt()` via `matchingTaskScheduler` |
+
+Pool sizes (matching, as of today): executor 4–16 threads + 200 queue, scheduler 2 threads. Tune per module based on observed load.
+
+### What this trades against BullMQ proper
+
+- **In-JVM only.** A scheduled timer dies on app crash / restart. Acceptable for a single-instance modular monolith; not acceptable once you scale to multiple replicas or need durable retries.
+- **No backpressure across instances.** All work runs in the publishing JVM.
+- **No dead-letter queue, no replay, no visibility.** Failures are caught and logged in the listener; ops has no inbox.
+
+### Migration path
+
+When durability or multi-instance dispatch becomes a requirement, swap the trigger source — keep the listener's body, replace the `@EventListener` with a Redis Streams consumer (or Kafka, RabbitMQ). Producers continue to publish the same domain event types via `ApplicationEventPublisher`; an outbox-style relay forwards them to the queue. Domain logic is unaffected.
+
+### Listener contract checklist
+
+Every async listener:
+1. Catches `RuntimeException` and logs explicitly. `@Async` swallows uncaught exceptions; without explicit logging, failed jobs vanish.
+2. Is idempotent or guards against double-fire — Spring's local event bus guarantees at-least-once within the JVM but offers no across-restart deduplication.
+3. Reads its inputs from the event payload and from facades — never from another module's repository.
 
 ---
 
-### matching
+## 13. Bounded Context Reference Sheet
+
+### ride-management ⭐ Core Domain — ⚠️ Partial
 
 | | |
 |---|---|
-| **Owns** | Match, Grouping, MatchingRules |
-| **Exposes** | `getMatchForRide` |
-| **Emits** | `MatchFoundEvent`, `MatchFailedEvent`, `GroupingCreatedEvent` |
-| **Listens to** | `RideRequestedEvent`, `RideOfferedEvent` |
-| **Depends on (via facade)** | `user-management`, `geolocation`, `territorial-configuration` |
-| **Schema** | `matching` |
+| **Owns** | Ride aggregate (State pattern: Requested, Proposed, Accepted, PickedUp, InProgress, Arrived, Finalized, Cancelled, Incident), RideRequest, RideOffer |
+| **Exposes** | `RideManagementFacade` — currently `requestRide`, `getRideById` |
+| **Target surface** (from original design) | `createRideRequest`, `createRideOffer`, `getRideById`, `getRidesByPassenger` |
+| **Emits** | `RideRequestedEvent` (on `Ride.create(...)`), `RideAcceptedEvent` (declared, **not yet emitted from any state transition**), `RideFinalizedEvent` (currently emitted from `arrive()` — to be moved to a true finalize step once payment listens) |
+| **Target events** (from original design, not yet implemented) | `RideOfferedEvent`, `RidePickedUpEvent`, `RideInProgressEvent`, `RideArrivedEvent`, `RideCancelledEvent`, `RideIncidentEvent` |
+| **Listens to** | (target) `PaymentProcessedEvent` (to finalize), `MatchFoundEvent` (to move to Proposed) — not yet implemented |
+| **Outstanding** | RideOffer / RideRequest aggregates exist but have no repository implementation and aren't reachable from the facade. Currently no unit tests beyond `RideTest` (3 tests covering `Ride.create` + `RideRequestedEvent` emission). |
+| **REST** | `POST /api/rides`, `GET /api/rides/{id}` |
+| **Schema** | `ride` (tables: `rides`, `ride_requests`, `ride_offers`) |
+
+---
+
+### matching ✅ Implemented (BDD bindings deferred)
+
+| | |
+|---|---|
+| **Owns** | `Match` aggregate (state machine `SEARCHING → PROPOSED → ACCEPTED/UNMATCHED/CANCELLED`), `Grouping` aggregate (carpooling), `DriverRanking` domain service (zone → distance → reputation), `ProposalWindow` value object |
+| **Exposes** | `MatchingFacade` — `runImmediateMatching`, `runScheduledMatching`, `acceptProposal`, `declineProposal`, `expireProposal`, `cancelMatch`, `evaluateGrouping`, `dissolveGroupingForRideRequest`, `getMatchForRide`, `searchRideOffers` |
+| **Emits** | `MatchProposalSentEvent`, `MatchFoundEvent`, `MatchFailedEvent`, `GroupingCreatedEvent`, `GroupingDissolvedEvent` |
+| **Listens to** | `RideRequestedEvent` (via `MatchingTriggerListener`, async on `matchingTaskExecutor`), `MatchProposalSentEvent` (via `ProposalExpiryScheduler`, schedules `expireProposal` at the deadline) |
+| **Depends on (via facade)** | `user-management`, `territorial-configuration` |
+| **Depends on (via port + stub adapter, until sibling lands)** | `geolocation` (`GeolocationPort` ↔ `StubGeolocationAdapter`), `reputation` (`ReputationPort` ↔ `StubReputationAdapter`), `ride-management` (`RideOfferCatalogPort` ↔ `StubRideOfferCatalogAdapter`) |
+| **Async pipeline** | `MatchingAsyncConfig` provides `matchingTaskExecutor` (4–16 threads, queue 200) and `matchingTaskScheduler` (2 threads). See §12. |
+| **REST** | `POST /api/matching/immediate`, `POST /api/matching/scheduled`, `POST /api/matching/{rideId}/{accept,decline,expire,cancel}`, `GET /api/matching/{rideId}`, `GET /api/matching/ride-offers/search` |
+| **Schema** | `matching` (tables: `matches`, `match_exclusions`, `groupings`, `grouping_members`) |
+| **Tests** | 90 unit tests (full domain coverage, handler coverage with mocked facades/ports, async listener coverage). Cucumber bindings against `features/matching.feature` deferred. |
 
 ---
 
@@ -798,19 +893,21 @@ features/territorial_configuration.feature  →  tests bound to step definitions
 
 ---
 
-### geolocation
+### geolocation ✅ Implemented (BDD bindings deferred)
 
 | | |
 |---|---|
-| **Owns** | RealTimePosition, Route, ETA |
-| **Exposes** | `calculateRoute`, `getEta`, `updateDriverPosition`, `getDriversWithinRadius` |
-| **Emits** | `DriverPositionUpdatedEvent` |
-| **Listens to** | `DriverAvailabilityChangedEvent` |
-| **External mocks** | `MockRoutingAdapter` (Google Maps) |
-| **Note** | Uses Redis GEO commands for real-time position. PostGIS for persistent route data. |
-| **Schema** | `geo` |
+| **Owns** | `RealTimePosition` aggregate, `Route` aggregate, `Eta` value object |
+| **Exposes** | `GeolocationFacade` — `updateDriverPosition`, `removeDriverPosition`, `getDriverPosition`, `getDriversWithinRadius`, `calculateRoute`, `getEta` |
+| **Emits** | `DriverPositionUpdatedEvent` (declared) |
+| **Listens to** | `DriverAvailabilityChangedEvent` — `DriverAvailabilityEventHandler` removes the driver from the Redis GEO set on `OFFLINE` |
+| **External mocks** | `MockRoutingAdapter` (Google Maps) — Haversine distance + 30 km/h average duration + fixed 5-minute ETA |
+| **Note** | Uses Redis GEO commands (`GEOADD`, `GEORADIUS`) for real-time position. PostGIS GIST index on `geo.routes` for persistent route data. |
+| **REST** | `/api/geolocation` |
+| **Schema** | `geo` (table: `routes`) |
+| **Tests** | 39 unit tests (domain VOs, entities, MockRoutingAdapter, handlers). Cucumber bindings against `features/geolocation.feature` deferred. |
 
 ---
 
-> *Last updated: 2026-04-29*
+> *Last updated: 2026-04-29 — added §12 async pipeline, refreshed module statuses (matching ✅, geolocation ✅, ride-management partial), Lombok / Mockito mock-maker / Flyway version registry conventions.*
 > *Any change to this document must be discussed with the team — it affects all bounded contexts.*
