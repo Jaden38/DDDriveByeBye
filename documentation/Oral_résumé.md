@@ -1,6 +1,6 @@
 # Trame de Soutenance : DDDriveByeBye
 
-## Slide 1 – Titre & Introduction
+## Slide 1 – Titre & Introduction (Quentin)
 **Titre :** DDDriveByeBye – Plateforme de Mobilité Hybride (VTC & Covoiturage) pilotée par le domaine (DDD)
 
 **Sous-titre :** Comment le DDD réconcilie le temps réel du VTC à la demande et la planification du covoiturage dans un Monolithe Modulaire.
@@ -15,7 +15,7 @@
 
 ---
 
-## Slide 2 – Pourquoi DDD plutôt que des microservices CRUD ?
+## Slide 2 – Pourquoi DDD plutôt que des microservices CRUD ? (Alexy)
 **La Complexité métier :**
 * Dualité des profils : Un compte *Individual* peut être passager et conducteur, mais un compte *Professional* est strictement VTC.
 * Invariants d'états stricts : Un trajet ne peut pas être payé s'il n'a pas été "Picked Up".
@@ -29,7 +29,7 @@
 
 ---
 
-## Slide 3 – Strategic Design : La Context Map
+## Slide 3 – Strategic Design : La Context Map (Damien)
 *Représentation graphique : les 9 Bounded Contexts (cf. `documentation/context_map.png`).*
 
 **Les Bounded Contexts (BC) :**
@@ -56,7 +56,7 @@
 
 ---
 
-## Slide 4 – Zoom sur le Langage Ubiquitaire (L'Anti-corruption linguistique)
+## Slide 4 – Zoom sur le Langage Ubiquitaire (L'Anti-corruption linguistique) (Eva)
 *Tableau des distinctions critiques :*
 
 * **Comptes :** `Individual Account` (covoiturage, double rôle) vs `Professional Account` (VTC, un seul rôle).
@@ -67,7 +67,7 @@
 
 ---
 
-## Slide 5 – Patterns d'Intégration et Justifications
+## Slide 5 – Patterns d'Intégration et Justifications (Eva)
 **Territorial Configuration comme fournisseur (Customer-Supplier) :**
 * *Problème :* Dupliquer les règles tarifaires et réglementaires (taux au km, licence VTC obligatoire, plafond de surge) dans Pricing et Matching.
 * *Solution :* Un BC dédié, `TerritorialConfigurationFacade`. Pricing l'interroge pour les barèmes, Matching pour les contraintes (ex. exiger une licence VTC à Paris).
@@ -79,7 +79,7 @@
 
 ---
 
-## Slide 6 – Le Cœur du Domaine : Ride Management (Core Domain)
+## Slide 6 – Le Cœur du Domaine : Ride Management (Core Domain) (Romain)
 **Architecture interne :**
 * **Agrégat racine :** `Ride`. Implémente une machine à 9 états via le **State Pattern** : `Requested → Proposed → Accepted → PickedUp → InProgress → Arrived → Finalized`, plus deux branches terminales `Cancelled` et `Incident`.
 * **Protection :** Pas de mutation publique de l'état — les transitions passent par des méthodes métier (`propose`, `accept`, `pickUp`, `start`, `arrive`, `finalizeRide`, `cancel`, `reportIncident`) qui délèguent à l'objet `RideState` courant. Une transition illégale lève `InvalidRideOperationException`.
@@ -88,7 +88,7 @@
 
 ---
 
-## Slide 7 – Architecture Technique Tactique (Spring Boot)
+## Slide 7 – Architecture Technique Tactique (Spring Boot) (Damien)
 **Le Monolithe Modulaire (Java 21) :**
 * Chaque BC est un module hermétique. Communication uniquement via le dossier `api/` (Facades + DTOs).
 * **Isolation Data :** Un schéma PostgreSQL par Bounded Context. Schémas effectivement créés aujourd'hui : `users`, `territory`, `geo`, `ride`, `matching`. Aucune jointure SQL inter-modules — toute donnée d'un autre module passe par sa façade.
@@ -105,20 +105,7 @@
 
 ---
 
-## Slide 8 – Traversée d'un Scénario BDD (Gherkin)
-*Déroulement (Immediate Ride) — partie en gras = vérifié end-to-end aujourd'hui via `docker compose up` :*
-1. **User Management :** Alice (Individual passager) est enregistrée. Bob (Professional driver) est dans sa `Working Zone`. ✅
-2. **Ride Management :** `POST /api/rides` crée la requête, l'agrégat `Ride` émet `RideRequestedEvent` via `pullDomainEvents()`. ✅
-3. **Matching (async) :** `MatchingTriggerListener` consomme l'événement, interroge `TerritorialConfigurationFacade` (licence VTC ?), puis lance le matching. Le `Match` est persisté avec son statut (`PROPOSED` ou `UNMATCHED`). ✅
-4. **Pricing & Territorial :** Calculent la `Fare Estimate` selon la ville d'Alice. *(Module Pricing à venir — Step 5.)*
-5. **Ride Management :** Cycle `Accepted → PickedUp → InProgress → Arrived → Finalized`. ✅ pour la machine à états ; manque les événements intermédiaires câblés.
-6. **Payment & Reputation :** Débitent le `Final Price` et enregistrent le `Rating`. *(Modules à venir — Step 5.)*
-
-**Message clé :** Les événements de domaine + le pipeline asynchrone permettent à chaque BC d'agir de façon autonome **sans connaître les internes des autres** — ils ne voient que les événements publiés (cf. règle "events = contrat public").
-
----
-
-## Slide 9 – Leçons Apprises et Conclusion
+## Slide 8 – Leçons Apprises et Conclusion (Quentin)
 **Pourquoi nos choix fonctionnent :**
 * L'absence d'annotations JPA dans le domaine protège nos règles métier de la complexité technique de la base de données.
 * Le découpage en schémas SQL séparés nous permet de basculer vers de vrais Microservices le jour où la charge (ex. Geolocation) le nécessitera — chaque schéma part avec son module sans renommage.
