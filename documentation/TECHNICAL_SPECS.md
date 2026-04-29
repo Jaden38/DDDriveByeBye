@@ -112,8 +112,7 @@ src/
 └── main/
     └── resources/
         ├── application.yml
-        └── db/migration/
-            └── V1__init.sql
+        └── schema.sql                # CREATE SCHEMA IF NOT EXISTS for each module
 
 src/
 └── test/
@@ -556,27 +555,25 @@ public interface SpringDataTerritoryRepository extends JpaRepository<TerritoryJp
 
 The domain repository interface is implemented by a `@Repository` class that uses the Spring Data interface as a delegate and handles all mapping between JPA entities and domain objects.
 
-### Migrations
+### Schema management
 
-All schemas and tables are created by Flyway. Migration scripts live in `src/main/resources/db/migration/` and follow the naming convention `V{version}__{description}.sql`.
+For the current development phase the schema is managed by **Hibernate's `ddl-auto: create-drop`**, not Flyway. Each app start drops and recreates all tables from the JPA `@Entity` classes; volumes are wiped between runs (`docker compose down -v`). Flyway is disabled (`spring.flyway.enabled: false`).
 
-The initial migration (`V1__init.sql`) creates the PostGIS extension and the `users` and `territory` schemas.
+The **only** SQL file in `src/main/resources/` is `schema.sql`, which Spring runs at datasource init (before Hibernate generates tables). Its sole job is to create the per-module PG schemas, since Hibernate does not auto-create namespaces:
 
-Flyway is **disabled** in the test profile — tests use `spring.jpa.hibernate.ddl-auto: create-drop` with H2 in-memory.
+```sql
+CREATE SCHEMA IF NOT EXISTS users;
+CREATE SCHEMA IF NOT EXISTS territory;
+CREATE SCHEMA IF NOT EXISTS geo;
+CREATE SCHEMA IF NOT EXISTS ride;
+CREATE SCHEMA IF NOT EXISTS matching;
+```
 
-#### Version registry
+**Adding a new module's schema:** add one line to `schema.sql` and a JPA entity with `@Table(schema = "<module>")`. No migration to write, no version number to claim.
 
-Flyway requires unique version numbers across the whole `db/migration/` directory. To prevent collisions when multiple modules merge in parallel, **claim a version in this table before opening a PR**:
+**PostGIS:** the `postgis/postgis:15-3.4` image creates the extension automatically in the default DB.
 
-| Version | Module | File |
-|---|---|---|
-| V1 | bootstrap | `V1__init.sql` (PostGIS, `users`, `territory`) |
-| V2 | geolocation | `V2__geolocation.sql` (`geo` schema) |
-| V3 | _reserved_ | _to renumber the duplicate `V2__ride_management.sql` currently on main_ |
-| V4 | matching | `V4__matching.sql` (`matching` schema) |
-| V5+ | available | claim sequentially: pricing, payment, reputation, notification |
-
-If two PRs land at the same version, the later one renumbers — never edit a published migration in place.
+**Trade-offs.** This is fast for development but loses data on every restart and offers no schema-evolution path. When the project needs durable schemas across deploys (production, shared staging, multi-instance), reintroduce Flyway: turn `ddl-auto: validate`, set `spring.flyway.enabled: true`, and add a baseline migration that snapshots the Hibernate-generated schema. At that point a version registry becomes useful again.
 
 ### Cross-schema joins are forbidden
 
@@ -592,10 +589,13 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:app}
   jpa:
     hibernate:
-      ddl-auto: validate       # schema managed by Flyway — never create/update in prod
+      ddl-auto: create-drop    # development: tables are dropped + recreated each boot
   flyway:
-    enabled: true
-    baseline-on-migrate: true
+    enabled: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql   # creates PG schemas before Hibernate runs
 ```
 
 ### Test configuration (`src/test/resources/application.yml`)
@@ -909,5 +909,5 @@ Every async listener:
 
 ---
 
-> *Last updated: 2026-04-29 — added §12 async pipeline, refreshed module statuses (matching ✅, geolocation ✅, ride-management partial), Lombok / Mockito mock-maker / Flyway version registry conventions.*
+> *Last updated: 2026-04-29 — switched §8 to Hibernate-managed schemas (Flyway disabled, `schema.sql` bootstraps PG namespaces, `ddl-auto: create-drop`); added §12 async pipeline; refreshed module statuses (matching ✅, geolocation ✅, ride-management partial); Lombok / Mockito mock-maker conventions.*
 > *Any change to this document must be discussed with the team — it affects all bounded contexts.*
